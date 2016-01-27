@@ -168,20 +168,16 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
 
     public function testInit()
     {
-        \WP_Mock::wpFunction(
-            'add_options_page',
-            array(
-                'called' => 1,
-                'args' => array(
-                    'Passive Indexation Check', 'Passive Indexation Check', 'administrator', '*', '*'
-                )
-            )
-        );
-
         $plugin = new PassiveIndexationCheck;
 
         \WP_Mock::expectActionAdded('do_robots', array($plugin, 'checkBotVisit'));
         \WP_Mock::expectActionAdded('init', array($plugin, 'notificationsHook'));
+        \WP_Mock::expectActionAdded('admin_init', array($plugin, 'enqueueJSAndCSSFiles'));
+        \WP_Mock::expectActionAdded('wp_ajax_passive_indexation_check_update_settings', array($plugin, 'updateSettings'));
+        \WP_Mock::expectActionAdded('wp_ajax_passive_indexation_check_delete_email', array($plugin, 'deleteNotifierEmail'));
+        \WP_Mock::expectActionAdded('wp_ajax_passive_indexation_check_add_email', array($plugin, 'addNotifierEmail'));
+        \WP_Mock::expectActionAdded('admin_menu', array($plugin, 'activateGUI'));
+
         $plugin->__construct();
         \WP_Mock::assertHooksAdded();
     }
