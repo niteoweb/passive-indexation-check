@@ -14,6 +14,8 @@ namespace Niteoweb\PassiveIndexationCheck;
 class PassiveIndexationCheck
 {
 
+    protected $optionsKey = 'passive_indexation_check_settings';
+
     public function __construct()
     {
         add_action('do_robots', array(&$this, 'checkBotVisit'));
@@ -32,68 +34,45 @@ class PassiveIndexationCheck
 
     public function loadOptionsGUI()
     {
-        $options = get_option('passive_indexation_check_settings');
+        $options = get_option($this->optionsKey);
         $nonce = wp_create_nonce('passive_indexation_check_nonce');
 
-        include_once 'plugindata/view/main_gui.php';
+        include_once 'view/main_gui.html';
     }
 
     public function enqueueJSAndCSSFiles()
     {
-        wp_enqueue_script('passive-indexation-check-scripts', plugin_dir_url(__FILE__).'plugindata/js/passive_indexation_check.js', array("jquery", "jquery-ui-core"));
-        wp_enqueue_script('passive-indexation-check-sweet-alert', plugin_dir_url(__FILE__).'plugindata/js/sweet-alert.min.js', array("jquery", "jquery-ui-core"));
-        wp_enqueue_style('passive-indexation-check-sweet-alert-css', plugin_dir_url(__FILE__).'plugindata/css/sweet-alert.css');
+        wp_enqueue_script('passive-indexation-check-scripts', plugin_dir_url(__FILE__).'js/passive_indexation_check.js', array("jquery", "jquery-ui-core"));
     }
 
     /**
      *
      * Check if the request made for page render is from a bot.
      *
-     * @return [boolean] Returns true if visit was made by Google Bot, else false.
+     * @return [false | long]   Returns false if bot has not visited page or time of visit.
      *
      */
     public function checkBotVisit()
     {
         $googleBotVisitTime = false;
+        $userAgent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : false;
 
-        if (!empty($_SERVER['HTTP_USER_AGENT'])) {
-            $userAgent = strtolower($_SERVER['HTTP_USER_AGENT']);
+        if ($userAgent) {
+            $userAgent = strtolower($userAgent);
             if (strpos($userAgent, 'www.google.com/bot.html') !== false) {
-                $options = get_option('passive_indexation_check_settings');
+                $options = get_option($this->optionsKey);
                 $googleBotVisitTime = time();
                 $options['lastBotVisit'] = $googleBotVisitTime;
-                update_option('passive_indexation_check_settings', $options);
+                update_option($this->optionsKey, $options);
             }
         }
 
         return $googleBotVisitTime;
     }
 
-    /**
-     *
-     * Check if HTTP request was made by a Google Bot.
-     *
-     * @return [boolean]    Returns true if page request was done by a Google Bot.
-     *
-     */
-    public function checkIfGoogleBotHeader()
-    {
-        $googleBotVisit = false;
-
-        if (!empty($_SERVER['HTTP_USER_AGENT'])) {
-            $userAgent = strtolower($_SERVER['HTTP_USER_AGENT']);
-            if (strpos($userAgent, 'www.google.com/bot.html') !== false) {
-                $googleBotVisit = true;
-            }
-        }
-
-        return $googleBotVisit;
-
-    }
-
     public function notificationsHook()
     {
-        $options = get_option('passive_indexation_check_settings');
+        $options = get_option($this->optionsKey);
         return $this->sendNotificationEmails($options);
     }
 
@@ -120,7 +99,7 @@ class PassiveIndexationCheck
             // checking ...
             if ($options['notificationData']['botVisitTimeAtNotification'] < $options['lastBotVisit']) {
                 $options['notificationData']['notificationsSent'] = false;
-                update_option('passive_indexation_check_settings', $options);
+                update_option($this->optionsKey, $options);
             } else { // Check out if n days have passed since we last sent out the notification ...
                 if ($currentTS - $options['notificationData']['lastNotificationTS'] > $options['resendEmailTime'] * 24 * 60 * 60) {
                     $sendEmailNotifications = true;
@@ -150,7 +129,7 @@ class PassiveIndexationCheck
                     $options['notificationData']['notificationsSent'] = true;
                     $options['notificationData']['botVisitTimeAtNotification'] = $options['lastBotVisit'];
                 }
-                update_option('passive_indexation_check_settings', $options);
+                update_option($this->optionsKey, $options);
                 return $sentEmails;
             }
         }
@@ -170,9 +149,9 @@ class PassiveIndexationCheck
             $nonceCheck = wp_verify_nonce($_POST['nonce'], 'passive_indexation_check_nonce');
 
             if ($nonceCheck) {
-                $options = get_option('passive_indexation_check_settings');
+                $options = get_option($this->optionsKey);
                 $options['notificationTime'] = $_POST['notification_time'];
-                update_option('passive_indexation_check_settings', $options);
+                update_option($this->optionsKey, $options);
                 wp_send_json_success($options);
             } else {
                 $data = array(
@@ -207,7 +186,7 @@ class PassiveIndexationCheck
                     return;
                 }
 
-                $options = get_option('passive_indexation_check_settings');
+                $options = get_option($this->optionsKey);
                 $newNotifier = $_POST['addedNotifier'];
 
                 if (!filter_var($newNotifier, FILTER_VALIDATE_EMAIL)) {
@@ -224,7 +203,7 @@ class PassiveIndexationCheck
                     wp_send_json_error($data);
                 } else {
                     array_push($options['notificationEmails'], $newNotifier);
-                    update_option('passive_indexation_check_settings', $options);
+                    update_option($this->optionsKey, $options);
                     $options['msg'] = 'Email ' . $newNotifier . ' was successfully added to notifications list.';
                     wp_send_json_success($options);
                 }
@@ -260,12 +239,12 @@ class PassiveIndexationCheck
                     wp_send_json_error($data);
                     return;
                 }
-                $options = get_option('passive_indexation_check_settings');
+                $options = get_option($this->optionsKey);
                 $deleteNotifier = $_POST['deleteNotifier'];
 
                 if (($key = array_search($deleteNotifier, $options['notificationEmails'])) !== false) {
                     unset($options['notificationEmails'][$key]);
-                    update_option('passive_indexation_check_settings', $options);
+                    update_option($this->optionsKey, $options);
                     $options['msg'] = 'Email ' . $deleteNotifier . ' was successfully removed from notifications list.';
                     wp_send_json_success($options);
                 } else {
@@ -301,12 +280,12 @@ class PassiveIndexationCheck
                 'botVisitTimeAtNotification' => time()
             )
         );
-        add_option('passive_indexation_check_settings', $options);
+        add_option($this->optionsKey, $options);
     }
 
     public function deactivatePlugin()
     {
-        delete_option('passive_indexation_check_settings');
+        delete_option($this->optionsKey);
     }
 }
 
