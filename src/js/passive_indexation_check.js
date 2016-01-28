@@ -1,4 +1,4 @@
-var passiveIndexationCheckJS = (function () {
+var passiveIndexationCheckJS = (function ($) {
  
     function sendRequest(params, callback)
     {
@@ -152,4 +152,4 @@ var passiveIndexationCheckJS = (function () {
         updateSettings: updateSettings
     };
 
-})();
+})(document, jQuery);
