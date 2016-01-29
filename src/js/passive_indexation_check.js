@@ -1,155 +1,197 @@
 var passiveIndexationCheckJS = (function ($) {
- 
-    function sendRequest(params, callback)
-    {
-        var nonce = jQuery('input[name=passive_indexation_check_nonce]').val();
-        params['nonce'] = nonce;
 
-        if (nonce) {
-            jQuery.ajax({
+    var adminNoticeId = '#passiveIdentificationCheckNotice';
+
+    var _private = {
+        /**
+         *
+         * Send AJAX post request to WordPress AJAX url.
+         *
+         * @param  {string}   formId      Form id.
+         * @param  {object}   extraParams Extra parameters to be added besides form data.
+         * @param  {Function} callback    Callback for returning data.
+         *
+         * @return {void}
+         *
+         */
+        sendRequest: function(formId, extraParams, callback)
+        {
+            var data = false;
+
+            if (formId) {
+                data = $('form#' + formId).serialize();
+            }
+            if (extraParams) {
+                data = data ? data + '&' + $.param(extraParams) : $.param(extraParams);
+            }
+
+            $.ajax({
                 url: ajaxurl,
                 type: 'POST',
-                data: params,
-                success: function (data) {
+                data: data,
+                success: function (data, successCode, jqXHR) {
+                    data.reqStatus = jqXHR.status;
                     callback(data);
                 },
-                error: function () {
-                    callback(false);
+                error: function (jqXHR, textStatus, error) {
+                    var data = {
+                        reqStatus: jqXHR.status
+                    };
+                    callback(data);
                 }
             });
-        } else {
-            callback(false);
-        }
-    }
+        },
+        /**
+         *
+         * Handle WP notification message.
+         *
+         * @param  {object} data Data that was returned by plugin AJAX action.
+         *
+         * @return {void}
+         */
+        triggerMessage: function(data) {
+            $(adminNoticeId).removeClass('error updated').hide();
 
-    function triggerRequestError()
-    {
-        swal(
-            {
-                title: 'Error',
-                text: 'An unknown error occured while requesting the server. Please try again.',
-                timer: 4000,
-                type: 'error'
-            }
-        );
-    }
-
-    function triggerError(errorMsg)
-    {
-        swal(
-            {
-                title: 'Error',
-                text: errorMsg,
-                timer: 4000,
-                type: 'error'
-            }
-        );
-    }
-
-    function addEmail()
-    {
-        var email = jQuery('input[name=passive_indexation_check_emails]').val();
-        var params = {
-            action: 'passive_indexation_check_add_email',
-            addedNotifier: email
-        };
-
-        sendRequest(params, function (data) {
-            if (data) {
+            if (_private.isRequestSuccessfull(data)) {
                 if (data.success) {
-                    updateEmailsList(data.data.notificationEmails);
-                    jQuery('input[name=passive_indexation_check_emails]').val('');
-                    swal(
-                        {
-                            title: 'Email added',
-                            text: data.data.msg,
-                            timer: 4000,
-                            type: 'success'
-                        }
-                    );
+                    $(adminNoticeId).addClass('updated').
+                        html(_private.wrapMessage(data.data.msg));                    
                 } else {
-                    triggerError(data.data.msg);
+                    $(adminNoticeId).addClass('error').
+                        html(_private.wrapMessage(data.data.msg));
                 }
             } else {
-                triggerRequestError();
+                var msg = 'There was a ' + data.reqStatus + ' error while trying to complete your request.';
+                $(adminNoticeId).addClass('error').
+                    html(_private.wrapMessage(msg));
             }
-        });
-    }
 
-    function deleteEmail(email)
-    {
-        var params = {
-            action: 'passive_indexation_check_delete_email',
-            deleteNotifier: email
-        };
+            $(adminNoticeId).show(300);
 
-        sendRequest(params, function (data) {
-            if (data) {
-                if (data.success) {
-                    updateEmailsList(data.data.notificationEmails);
-                    swal(
-                        {
-                            title: 'Email deleted',
-                            text: data.data.msg,
-                            timer: 4000,
-                            type: 'success'
-                        }
-                    );
-                } else {
-                    triggerError(data.data.msg);
+        },
+        isRequestSuccessfull: function(data) {
+            if (data.reqStatus >= 200 && data.reqStatus <= 226) {
+                return true;
+            }
+            return false;
+        },
+        /**
+         *
+         * Helper function for wrapping provided string into paragraph.
+         * 
+         * @param  {string} message String you wish to wrap in paragraph (<p>).
+         * 
+         * @return {string}         Returns wrapped string.
+         * 
+         */
+        wrapMessage: function(message) {
+            return '<p>' + message + '</p>';
+        },
+        updateEmailsList: function(emails)
+        {
+            var emailsHtml = '';
+            for (var i=0; i<emails.length; i++) {
+                var email = emails[i];
+                emailsHtml += '<span>' + email + '<span>';
+                emailsHtml += '<a onclick="passiveIndexationCheckJS.deleteEmail(\'' + email + '\');">';
+                emailsHtml += ' <span class="dashicons dashicons-no-alt" style="color: #d9534f;"></span>';
+                emailsHtml += '</a><br>';
+            }
+            $('#passiveIndexationCheckEmailsList').html(emailsHtml);
+        },
+
+        // Request functions
+
+        /**
+         *
+         * Add email request.
+         *
+         * Sends form data to backend and adds email to notification list.
+         *
+         */
+        addEmail: function()
+        {
+            var extraParams = {
+                action: 'passive_indexation_check_add_email'
+            };
+
+            _private.sendRequest('passiveIndexationCheckForm', extraParams, function (data) {
+                if (_private.isRequestSuccessfull(data)) {
+                    if (data.success) {
+                        _private.updateEmailsList(data.data.notificationEmails);
+                        $('input[name=added_notifier]').val('');                        
+                    }
                 }
-            } else {
-                triggerRequestError();
-            }
-        });
-    }
+                _private.triggerMessage(data);
+            });
+        },
+        /**
+         *
+         * Update plugin settings request.
+         *
+         * @param  {string} formId Form id that we will send serialized to the backend.
+         *
+         * @return {void}
+         *
+         */
+        updateSettings: function(formId)
+        {
+            var extraParams = {
+                action: 'passive_indexation_check_update_settings'
+            };
 
-    function updateEmailsList(emails)
-    {
-        var emailsHtml = '';
-        for (var i=0; i<emails.length; i++) {
-            var email = emails[i];
-            emailsHtml += '<span>' + email + '<span>';
-            emailsHtml += '<a onclick="passiveIndexationCheckJS.deleteEmail(\'' + email + '\');">';
-            emailsHtml += ' <span class="dashicons dashicons-no-alt" style="color: #d9534f;"></span>';
-            emailsHtml += '</a><br>';
-        }
-        jQuery('#passiveIndexationCheckEmailsList').html(emailsHtml);
-    }
-
-    function updateSettings()
-    {
-        var params = {
-            action: 'passive_indexation_check_update_settings',
-            notification_time: jQuery('#passiveIndexationCheckDays option:selected').val()
-        };
-
-        sendRequest(params, function (data) {
-            if (data) {
-                if (data.success) {
-                    updateEmailsList(data.data.notificationEmails);
-                    jQuery('#passiveIndexationCheckDays').val(data.data.notificationTime);
-                    swal(
-                        {
-                            title: 'Settings updated',
-                            text: 'Settings were successfully updated.',
-                            timer: 4000,
-                            type: 'success'
-                        }
-                    );
-                } else {
-                    triggerError(data.data.msg);
+            _private.sendRequest(formId, extraParams, function (data) {
+                if (_private.isRequestSuccessfull(data)) {
+                    if (data.success) {
+                        _private.updateEmailsList(data.data.notificationEmails);
+                        $('#passiveIndexationCheckDays').val(data.data.notificationTime);                        
+                    }
                 }
-            } else {
-                triggerRequestError();
-            }
-        });
-    }
+                _private.triggerMessage(data);
+            });
+        },
 
-    return {
-        addEmail: addEmail,
-        deleteEmail: deleteEmail,
-        updateSettings: updateSettings
     };
 
-})(document, jQuery);
+    var _public = {
+        /**
+         *
+         * Send delete email from notifiers to backend.
+         *
+         * @param  {string} email Email to delete.
+         *
+         * @return {void}
+         * 
+         */
+        deleteEmail: function(email)
+        {
+            var extraParams = {
+                action: 'passive_indexation_check_delete_email',
+                delete_notifier: email
+            };
+
+            _private.sendRequest('passiveIndexationCheckForm', extraParams, function (data) {
+                if (_private.isRequestSuccessfull(data)) {
+                    if (data.success) {
+                        _private.updateEmailsList(data.data.notificationEmails);
+                    }
+                }
+                _private.triggerMessage(data);
+            });            
+        }
+    };
+
+    $(document).ready(function() {
+        $('#passiveIndexationCheckAddEmail').on('click', function (event) {
+            event.preventDefault();
+            _private.addEmail();
+        });
+        $('form#passiveIndexationCheckForm').on('submit', function (event) {
+            event.preventDefault();
+            _private.updateSettings('passiveIndexationCheckForm');
+        });
+    });
+
+    return _public;
+
+})(jQuery);

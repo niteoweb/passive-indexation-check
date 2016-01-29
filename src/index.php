@@ -15,6 +15,7 @@ class PassiveIndexationCheck
 {
 
     protected $optionsKey = 'passive_indexation_check_settings';
+    private $options;
 
     public function __construct()
     {
@@ -25,11 +26,30 @@ class PassiveIndexationCheck
         add_action('wp_ajax_passive_indexation_check_delete_email', array(&$this, 'deleteNotifierEmail'));
         add_action('wp_ajax_passive_indexation_check_add_email', array(&$this, 'addNotifierEmail'));
         add_action('admin_menu', array(&$this, 'activateGUI'));
+        add_action('admin_notices', array(&$this, 'noticeGUI'));
+
+        $options = array(
+            'notificationEmails' => array(),
+            'notificationTime' => 1,
+            'resendEmailTime' => 10,
+            'lastBotVisit' => time(),
+            'notificationData' => array(
+                'notificationsSent' => false,
+                'lastNotificationTS' => false,
+                'botVisitTimeAtNotification' => time()
+            )
+        );
+        $this->options = $options;
+    }
+
+    public function noticeGUI()
+    {
+        include_once 'view/notice_gui.html';
     }
 
     public function activateGUI()
     {
-        add_options_page('Passive Indexation Check', 'Passive Indexation Check', 'administrator', __FILE__, array( &$this, 'loadOptionsGUI'));
+        add_options_page('Passive Indexation Check', 'Passive Indexation Check', 'administrator', __FILE__, array(&$this, 'loadOptionsGUI'));
     }
 
     public function loadOptionsGUI()
@@ -152,6 +172,7 @@ class PassiveIndexationCheck
                 $options = get_option($this->optionsKey);
                 $options['notificationTime'] = $_POST['notification_time'];
                 update_option($this->optionsKey, $options);
+                $options['msg'] = 'Settings were successfully updated.';
                 wp_send_json_success($options);
             } else {
                 $data = array(
@@ -178,7 +199,7 @@ class PassiveIndexationCheck
             $nonceCheck = wp_verify_nonce($_POST['nonce'], 'passive_indexation_check_nonce');
 
             if ($nonceCheck) {
-                if (!isset($_POST['addedNotifier'])) {
+                if (!isset($_POST['added_notifier'])) {
                     $data = array(
                         'msg' => 'Notifier was not sent or invalid data.'
                     );
@@ -187,7 +208,7 @@ class PassiveIndexationCheck
                 }
 
                 $options = get_option($this->optionsKey);
-                $newNotifier = $_POST['addedNotifier'];
+                $newNotifier = $_POST['added_notifier'];
 
                 if (!filter_var($newNotifier, FILTER_VALIDATE_EMAIL)) {
                     $data = array(
@@ -204,7 +225,7 @@ class PassiveIndexationCheck
                 } else {
                     array_push($options['notificationEmails'], $newNotifier);
                     update_option($this->optionsKey, $options);
-                    $options['msg'] = 'Email ' . $newNotifier . ' was successfully added to notifications list.';
+                    $options['msg'] = sprintf('Email %s was successfully added to notifications list.', $newNotifier);
                     wp_send_json_success($options);
                 }
             } else {
@@ -232,7 +253,7 @@ class PassiveIndexationCheck
             $nonceCheck = wp_verify_nonce($_POST['nonce'], 'passive_indexation_check_nonce');
 
             if ($nonceCheck) {
-                if (!isset($_POST['deleteNotifier'])) {
+                if (!isset($_POST['delete_notifier'])) {
                     $data = array(
                         'msg' => 'Notifier was not sent or invalid data.'
                     );
@@ -240,12 +261,12 @@ class PassiveIndexationCheck
                     return;
                 }
                 $options = get_option($this->optionsKey);
-                $deleteNotifier = $_POST['deleteNotifier'];
+                $deleteNotifier = $_POST['delete_notifier'];
 
                 if (($key = array_search($deleteNotifier, $options['notificationEmails'])) !== false) {
                     unset($options['notificationEmails'][$key]);
                     update_option($this->optionsKey, $options);
-                    $options['msg'] = 'Email ' . $deleteNotifier . ' was successfully removed from notifications list.';
+                    $options['msg'] = sprintf('Email %s was successfully removed from notifications list.', $deleteNotifier);
                     wp_send_json_success($options);
                 } else {
                     $data = array(
@@ -269,29 +290,21 @@ class PassiveIndexationCheck
 
     public function activatePlugin()
     {
-        $options = array(
-            'notificationEmails' => array('some@some.com', 'boo@boo.com'),
-            'notificationTime' => 1,
-            'resendEmailTime' => 10,
-            'lastBotVisit' => time(),
-            'notificationData' => array(
-                'notificationsSent' => false,
-                'lastNotificationTS' => false,
-                'botVisitTimeAtNotification' => time()
-            )
-        );
-        add_option($this->optionsKey, $options);
+        if (get_option($this->optionsKey) === false) {
+            update_option($this->optionsKey, $this->options);
+        }
     }
 
     public function deactivatePlugin()
     {
         delete_option($this->optionsKey);
     }
+
 }
 
 // Inside WordPress
 if (defined('ABSPATH')) {
     $PassiveIndexationCheck_ins = new PassiveIndexationCheck;
-    register_activation_hook(__FILE__, array( &$PassiveIndexationCheck_ins, 'activatePlugin' ));
-    register_deactivation_hook(__FILE__, array( &$PassiveIndexationCheck_ins, 'deactivatePlugin' ));
+    register_activation_hook(__FILE__, array(&$PassiveIndexationCheck_ins, 'activatePlugin'));
+    register_deactivation_hook(__FILE__, array(&$PassiveIndexationCheck_ins, 'deactivatePlugin'));
 }
