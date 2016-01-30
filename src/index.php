@@ -186,7 +186,6 @@ class PassiveIndexationCheck
      */
     public function updateSettings()
     {
-
         $response = array();
 
         if (isset($_POST['nonce'])) {
@@ -217,7 +216,6 @@ class PassiveIndexationCheck
      */
     public function addNotifierEmail()
     {
-
         $response = array();
 
         if (isset($_POST['nonce'])) {
@@ -271,7 +269,6 @@ class PassiveIndexationCheck
      */
     public function deleteNotifierEmail()
     {
-
         $response = array();
 
         if (isset($_POST['nonce'])) {
