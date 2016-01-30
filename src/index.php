@@ -26,6 +26,7 @@ class PassiveIndexationCheck
         add_action('wp_ajax_passive_indexation_check_delete_email', array(&$this, 'deleteNotifierEmail'));
         add_action('wp_ajax_passive_indexation_check_add_email', array(&$this, 'addNotifierEmail'));
         add_action('admin_menu', array(&$this, 'activateGUI'));
+        add_action('admin_notices', array(&$this, 'emailNoticeGUI'));
         add_action('admin_notices', array(&$this, 'noticeGUI'));
 
         $options = array(
@@ -37,7 +38,8 @@ class PassiveIndexationCheck
                 'notificationsSent' => false,
                 'lastNotificationTS' => false,
                 'botVisitTimeAtNotification' => time()
-            )
+            ),
+            'version' => 1.0
         );
         $this->options = $options;
     }
@@ -45,6 +47,14 @@ class PassiveIndexationCheck
     public function noticeGUI()
     {
         include_once 'view/notice_gui.html';
+    }
+
+    public function emailNoticeGUI()
+    {
+        $options = get_option($this->optionsKey);
+        if (count($options['notificationEmails']) == 0) {
+            include_once 'view/email_notice_gui.html';
+        }
     }
 
     public function activateGUI()
@@ -299,7 +309,6 @@ class PassiveIndexationCheck
     {
         delete_option($this->optionsKey);
     }
-
 }
 
 // Inside WordPress

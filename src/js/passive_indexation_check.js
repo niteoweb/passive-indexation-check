@@ -1,6 +1,7 @@
 var passiveIndexationCheckJS = (function ($) {
 
-    var adminNoticeId = '#passiveIdentificationCheckNotice';
+    var adminNoticeId = '#passiveIdentificationCheckNotice',
+        emailNoticeId = '#passiveIdentificationCheckEmailNotice';
 
     var _private = {
         /**
@@ -14,8 +15,7 @@ var passiveIndexationCheckJS = (function ($) {
          * @return {void}
          *
          */
-        sendRequest: function(formId, extraParams, callback)
-        {
+        sendRequest: function (formId, extraParams, callback) {
             var data = false;
 
             if (formId) {
@@ -49,13 +49,13 @@ var passiveIndexationCheckJS = (function ($) {
          *
          * @return {void}
          */
-        triggerMessage: function(data) {
+        triggerMessage: function (data) {
             $(adminNoticeId).removeClass('error updated').hide();
 
             if (_private.isRequestSuccessfull(data)) {
                 if (data.success) {
                     $(adminNoticeId).addClass('updated').
-                        html(_private.wrapMessage(data.data.msg));                    
+                        html(_private.wrapMessage(data.data.msg));
                 } else {
                     $(adminNoticeId).addClass('error').
                         html(_private.wrapMessage(data.data.msg));
@@ -69,7 +69,7 @@ var passiveIndexationCheckJS = (function ($) {
             $(adminNoticeId).show(300);
 
         },
-        isRequestSuccessfull: function(data) {
+        isRequestSuccessfull: function (data) {
             if (data.reqStatus >= 200 && data.reqStatus <= 226) {
                 return true;
             }
@@ -78,24 +78,30 @@ var passiveIndexationCheckJS = (function ($) {
         /**
          *
          * Helper function for wrapping provided string into paragraph.
-         * 
+         *
          * @param  {string} message String you wish to wrap in paragraph (<p>).
-         * 
+         *
          * @return {string}         Returns wrapped string.
-         * 
+         *
          */
-        wrapMessage: function(message) {
+        wrapMessage: function (message) {
             return '<p>' + message + '</p>';
         },
-        updateEmailsList: function(emails)
-        {
+        updateEmailsList: function (emails) {
             var emailsHtml = '';
-            for (var i=0; i<emails.length; i++) {
-                var email = emails[i];
-                emailsHtml += '<span>' + email + '<span>';
-                emailsHtml += '<a onclick="passiveIndexationCheckJS.deleteEmail(\'' + email + '\');">';
-                emailsHtml += ' <span class="dashicons dashicons-no-alt" style="color: #d9534f;"></span>';
-                emailsHtml += '</a><br>';
+            for (var key in emails) {
+                if (emails.hasOwnProperty(key)) {
+                    var email = emails[key];
+                    emailsHtml += '<span>' + email + '<span>';
+                    emailsHtml += '<a onclick="passiveIndexationCheckJS.deleteEmail(\'' + email + '\');">';
+                    emailsHtml += ' <span class="dashicons dashicons-no-alt" style="color: #d9534f;"></span>';
+                    emailsHtml += '</a><br>';
+                }
+            }
+            if (emailsHtml.length == 0) {
+                $(emailNoticeId).show();
+            } else {
+                $(emailNoticeId).hide();
             }
             $('#passiveIndexationCheckEmailsList').html(emailsHtml);
         },
@@ -109,8 +115,7 @@ var passiveIndexationCheckJS = (function ($) {
          * Sends form data to backend and adds email to notification list.
          *
          */
-        addEmail: function()
-        {
+        addEmail: function () {
             var extraParams = {
                 action: 'passive_indexation_check_add_email'
             };
@@ -119,7 +124,7 @@ var passiveIndexationCheckJS = (function ($) {
                 if (_private.isRequestSuccessfull(data)) {
                     if (data.success) {
                         _private.updateEmailsList(data.data.notificationEmails);
-                        $('input[name=added_notifier]').val('');                        
+                        $('input[name=added_notifier]').val('');
                     }
                 }
                 _private.triggerMessage(data);
@@ -134,8 +139,7 @@ var passiveIndexationCheckJS = (function ($) {
          * @return {void}
          *
          */
-        updateSettings: function(formId)
-        {
+        updateSettings: function (formId) {
             var extraParams = {
                 action: 'passive_indexation_check_update_settings'
             };
@@ -144,7 +148,7 @@ var passiveIndexationCheckJS = (function ($) {
                 if (_private.isRequestSuccessfull(data)) {
                     if (data.success) {
                         _private.updateEmailsList(data.data.notificationEmails);
-                        $('#passiveIndexationCheckDays').val(data.data.notificationTime);                        
+                        $('#passiveIndexationCheckDays').val(data.data.notificationTime);
                     }
                 }
                 _private.triggerMessage(data);
@@ -161,10 +165,9 @@ var passiveIndexationCheckJS = (function ($) {
          * @param  {string} email Email to delete.
          *
          * @return {void}
-         * 
+         *
          */
-        deleteEmail: function(email)
-        {
+        deleteEmail: function (email) {
             var extraParams = {
                 action: 'passive_indexation_check_delete_email',
                 delete_notifier: email
@@ -177,11 +180,11 @@ var passiveIndexationCheckJS = (function ($) {
                     }
                 }
                 _private.triggerMessage(data);
-            });            
+            });
         }
     };
 
-    $(document).ready(function() {
+    $(document).ready(function () {
         $('#passiveIndexationCheckAddEmail').on('click', function (event) {
             event.preventDefault();
             _private.addEmail();
