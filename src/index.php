@@ -49,7 +49,7 @@ class PassiveIndexationCheck
     public function emailNoticeGUI()
     {
         $emails = get_option($this->emailsKey);
-        if (count($emails == 0)) {
+        if (count($emails) == 0) {
             $pluginUrl = sprintf('%s/options-general.php?page=passive-indexation-check/index.php', get_admin_url());
             include_once 'view/email_notice_gui.html';
         }
