@@ -121,14 +121,18 @@ class PassiveIndexationCheck
     {
         $tresholdPassed = ($currentTS - $lastBotVisit > $sendTreshold * 24 * 60) ? true : false;
 
-        if (!$emailData['sent'] && !$emailData['lastSentTS'] && $tresholdPassed) {
-            return true;
+        if (!$emailData['sent'] && !$emailData['lastSentTS']) {
+            if ($tresholdPassed) {
+                return true;
+            }
+            return false;
         }
 
         // Resend email if 10 days have passed and the last Google Bot visit time was the same as
         // it was at the first sent email
         $resendTresholdPassed = ($currentTS - $emailData['lastSentTS'] > $resendTreshold * 24 * 60) ? true : false;
-        if ($resendTreshold && $lastBotVisit == $emailData['botVisitTimeAtNotification']) {
+
+        if ($resendTresholdPassed && $lastBotVisit == $emailData['botVisitTimeAtNotification']) {
             return true;
         }
         if ($lastBotVisit != $emailData['botVisitTimeAtNotification'] && $tresholdPassed) {
@@ -275,6 +279,7 @@ class PassiveIndexationCheck
 
             if ($nonceCheck) {
                 if (!isset($_POST['delete_notifier'])) {
+                    echo 'no data';
                     $response['msg'] = 'Notifier was not sent or invalid data.';
                     wp_send_json_error($response);
                     return;
@@ -317,8 +322,6 @@ class PassiveIndexationCheck
     public function deactivatePlugin()
     {
         wp_clear_scheduled_hook('passive_indexation_check_send_emails');
-        delete_option($this->emailsKey);
-        delete_option($this->optionsKey);
     }
 }
 

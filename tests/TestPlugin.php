@@ -18,110 +18,133 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::tearDown();
     }
 
-    public function testNotificationSending()
+    public function testShouldEmailBeSent()
     {
-        $options = array(
-            'notificationEmails' => array(),
-            'notificationTime' => 1,
-            'resendEmailTime' => 10,
-            'lastBotVisit' => time(),
-            'notificationData' => array(
-                'notificationsSent' => false,
-                'lastNotificationTS' => false,
-                'botVisitTimeAtNotification' => time()
-            )
+        $plugin = new PassiveIndexationCheck;
+
+        // Case 1: Email has not been sent yet and the time has not passed yet
+        $emailData = array(
+            'sent' => false,
+            'lastSentTS' => false
         );
 
+        $currentTS = time();
+        $sendTreshold = 1;
+        $resendTreshold = 10;
+        $lastBotVisit = time() - 0.5 * $sendTreshold * 24 * 60;
+
+        $emailSent = $plugin->shouldEmailBeSent($lastBotVisit, $currentTS, $sendTreshold, $resendTreshold, $emailData);
+        $this->assertEquals(false, $emailSent);
+
+        // Case 2: Email has not been sent yet and the time has passed
+        $lastBotVisit = $currentTS - 2 * $sendTreshold * 24 * 60;
+
+        $emailSent = $plugin->shouldEmailBeSent($lastBotVisit, $currentTS, $sendTreshold, $resendTreshold, $emailData);
+        $this->assertEquals(true, $emailSent);
+
+        // Case 3: Email has been sent, the resend time has passed and the bot time visit has not changed
+        $emailData = array(
+            'sent' => true,
+            'lastSentTS' => $currentTS - 1.1 * $resendTreshold * 24 * 60,
+            'botVisitTimeAtNotification' => $currentTS
+        );
+
+        $lastBotVisit = $currentTS;
+
+        $emailSent = $plugin->shouldEmailBeSent($lastBotVisit, $currentTS, $sendTreshold, $resendTreshold, $emailData);
+        $this->assertEquals(true, $emailSent);
+
+        // Case 4: Email has been sent, the resend time has not passed yet
+        $emailData = array(
+            'sent' => true,
+            'lastSentTS' => $currentTS - 0.5 * $resendTreshold * 24 * 60,
+            'botVisitTimeAtNotification' => $currentTS
+        );
+        $emailSent = $plugin->shouldEmailBeSent($lastBotVisit, $currentTS, $sendTreshold, $resendTreshold, $emailData);
+        $this->assertEquals(false, $emailSent);
+
+        // Case 5: Last bot time visit changed and treshold has not passed yet
+        $emailData = array(
+            'sent' => true,
+            'lastSentTS' => $currentTS - 0.5 * $resendTreshold * 24 * 60,
+            'botVisitTimeAtNotification' => $currentTS + 1
+        );
+
+        $emailSent = $plugin->shouldEmailBeSent($lastBotVisit, $currentTS, $sendTreshold, $resendTreshold, $emailData);
+        $this->assertEquals(false, $emailSent);
+
+        // Case 6: Last bot time visit changed and treshold passed
+        $emailData = array(
+            'sent' => true,
+            'lastSentTS' => $currentTS - 0.5 * $resendTreshold * 24 * 60,
+            'botVisitTimeAtNotification' => $currentTS + 1
+        );
+
+        $lastBotVisit = $currentTS - 2 * $sendTreshold * 24 * 60;
+        $emailSent = $plugin->shouldEmailBeSent($lastBotVisit, $currentTS, $sendTreshold, $resendTreshold, $emailData);
+        $this->assertEquals(true, $emailSent);
+
+    }
+
+    public function testSendNotificationEmailsTaskEmptyArray()
+    {
         \WP_Mock::wpFunction(
-            'wp_mail',
+            'get_option',
             array(
-                'called' => count($options['notificationEmails']),
+                'times' => 1,
                 'args' => array(
-                    \WP_Mock\Functions::type('string'),
-                    \WP_Mock\Functions::type('string'),
-                    \WP_Mock\Functions::type('string')
+                    'passive_indexation_check_emails'
                 ),
-                'return' => true
+                'return' => array(
+                )
             )
         );
 
         \WP_Mock::wpFunction(
             'update_option',
             array(
-                'called' => 1,
-                'args' => array('passive_indexation_check_settings', '*'),
+                'times' => 0,
+                'args' => array(
+                    'passive_indexation_check_emails'
+                ),
                 'return' => true
             )
         );
 
         $plugin = new PassiveIndexationCheck;
-        $output = $plugin->sendNotificationEmails($options);
-        $this->assertEquals(false, $output);
-
-        // Test if enough time has passed to send emails, and check if two emails
-        // were sent
-        $options['notificationEmails'] = array('test@local.com', 'test2@local.com');
-        $options['lastBotVisit'] = time() - 24 * 60 * 60 - 5;
-
-        \WP_Mock::wpFunction(
-            'wp_mail',
-            array(
-                'called' => count($options['notificationEmails']),
-                'args' => array(
-                    \WP_Mock\Functions::type('string'),
-                    \WP_Mock\Functions::type('string'),
-                    \WP_Mock\Functions::type('string')
-                ),
-                'return' => true
-            )
-        );
-
-        $output = $plugin->sendNotificationEmails($options);
-        $this->assertEquals(count($output), 2);
-
-        // Test if not enough time has passed to send emails
-        $options['lastBotVisit'] = time();
-
-        $output = $plugin->sendNotificationEmails($options);
-        $this->assertEquals(false, $output);
-
-        // Test if we send emails again after x days (if the bot hasn't visited the page yet)
-        $options['notificationData']['lastNotificationTS'] = time() - 10 * 24 * 60 * 60 - 5;
-        $options['notificationData']['notificationsSent'] = true;
-        $options['lastBotVisit'] = time() - 1 * 24 * 60 * 60 - 5;
-        $options['notificationData']['botVisitTimeAtNotification'] = $options['lastBotVisit'];
-
-        $output = $plugin->sendNotificationEmails($options);
-        $this->assertEquals(count($output), 2);
-
-        // Test checking to resend emails after n days if bot times are the same
-        $options['notificationData']['lastNotificationTS'] = time() - 9 * 24 * 60 * 60 - 5;
-        $options['notificationData']['notificationsSent'] = true;
-        $options['lastBotVisit'] = time() - 1 * 24 * 60 * 60 - 5;
-        $options['notificationData']['botVisitTimeAtNotification'] = $options['lastBotVisit'];
-
-        $output = $plugin->sendNotificationEmails($options);
-        $this->assertEquals($output, false);
+        $plugin->sendNotificationEmailsTask();
     }
 
-    public function testGoogleBotVisit()
+    public function testSendNotificationEmailsTaskNonEmptyArray()
     {
         \WP_Mock::wpFunction(
             'get_option',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
                     'passive_indexation_check_settings'
                 ),
                 'return' => array(
-                    'notificationEmails' => array('some@some.com', 'boo@boo.com'),
-                    'notificationTime' => 1,
-                    'resendEmailTime' => 10,
+                    'sendTreshold' => 1,
+                    'resendTreshold' => 10,
                     'lastBotVisit' => time(),
-                    'notificationData' => array(
-                        'notificationsSent' => false,
-                        'lastNotificationTS' => false,
-                        'botVisitTimeAtNotification' => time()
+                    'version' => 1.0
+                )
+            )
+        );
+
+        \WP_Mock::wpFunction(
+            'get_option',
+            array(
+                'times' => 1,
+                'args' => array(
+                    'passive_indexation_check_emails'
+                ),
+                'return' => array(
+                    'foo@foo.com' => array(
+                        'sent' => false,
+                        'lastSentTS' => false,
+                        'botVisitTimeAtNotification' => false
                     )
                 )
             )
@@ -130,24 +153,49 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'update_option',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
-                    'passive_indexation_check_settings', '*'
+                    'passive_indexation_check_emails',
+                    '*'
+                ),
+                'return' => true
+            )
+        );
+
+        $plugin = new PassiveIndexationCheck;
+        $plugin->sendNotificationEmailsTask();
+    }
+
+    public function testGoogleBotVisit()
+    {
+        \WP_Mock::wpFunction(
+            'get_option',
+            array(
+                'times' => 1,
+                'args' => array(
+                    'passive_indexation_check_settings'
+                ),
+                'return' => array(
+                    'sendTreshold' => 1,
+                    'resendTreshold' => 10,
+                    'lastBotVisit' => time(),
+                    'version' => 1.0
+                )
+            )
+        );
+
+        \WP_Mock::wpFunction(
+            'update_option',
+            array(
+                'times' => 1,
+                'args' => array(
+                    'passive_indexation_check_settings',
+                    '*'
                 ),
                 'return' => true
             )
         );
         
-        \WP_Mock::wpFunction(
-            'add_options_page',
-            array(
-                'called' => 1,
-                'args' => array(
-                    'Passive Indexation Check', 'Passive Indexation Check', 'administrator', '*', '*'
-                )
-            )
-        );
-
         $plugin = new PassiveIndexationCheck;
         $plugin->__construct();
 
@@ -171,12 +219,14 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         $plugin = new PassiveIndexationCheck;
 
         \WP_Mock::expectActionAdded('do_robots', array($plugin, 'checkBotVisit'));
-        \WP_Mock::expectActionAdded('init', array($plugin, 'notificationsHook'));
         \WP_Mock::expectActionAdded('admin_init', array($plugin, 'enqueueJSAndCSSFiles'));
         \WP_Mock::expectActionAdded('wp_ajax_passive_indexation_check_update_settings', array($plugin, 'updateSettings'));
         \WP_Mock::expectActionAdded('wp_ajax_passive_indexation_check_delete_email', array($plugin, 'deleteNotifierEmail'));
         \WP_Mock::expectActionAdded('wp_ajax_passive_indexation_check_add_email', array($plugin, 'addNotifierEmail'));
         \WP_Mock::expectActionAdded('admin_menu', array($plugin, 'activateGUI'));
+        \WP_Mock::expectActionAdded('admin_notices', array($plugin, 'emailNoticeGUI'));
+        \WP_Mock::expectActionAdded('admin_notices', array($plugin, 'noticeGUI'));
+        \WP_Mock::expectActionAdded('passive_indexation_check_send_emails', array($plugin, 'sendNotificationEmailsTask'));
 
         $plugin->__construct();
         \WP_Mock::assertHooksAdded();
@@ -190,7 +240,7 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_send_json_error',
             array(
-                'called' => 1
+                'times' => 1
             )
         );
 
@@ -205,7 +255,7 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_verify_nonce',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
                     \WP_Mock\Functions::type('string'),
                     'passive_indexation_check_nonce'
@@ -217,12 +267,12 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_send_json_error',
             array(
-                'called' => 1
+                'times' => 1
             )
         );
 
         $_POST['nonce'] = 'nonce';
-        $_POST['notification_time'] = '1';
+        $_POST['send_treshold'] = '1';
 
         $plugin->updateSettings();
     }
@@ -234,20 +284,40 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'get_option',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
                     'passive_indexation_check_settings'
                 ),
                 'return' => array(
-                    'notificationEmails' => array('some@some.com', 'boo@boo.com'),
-                    'notificationTime' => 1,
-                    'resendEmailTime' => 10,
+                    'sendTreshold' => 1,
+                    'resendTreshold' => 10,
                     'lastBotVisit' => time(),
-                    'notificationData' => array(
-                        'notificationsSent' => false,
-                        'lastNotificationTS' => false,
-                        'botVisitTimeAtNotification' => time()
-                    )
+                    'version' => 1.0
+                )
+            )
+        );
+
+        \WP_Mock::wpFunction(
+            'get_option',
+            array(
+                'times' => 1,
+                'args' => array(
+                    'passive_indexation_check_emails'
+                ),
+                'return' => array(
+                )
+            )
+        );
+
+        \WP_Mock::wpFunction(
+            'update_option',
+            array(
+                'times' => 1,
+                'args' => array(
+                    'passive_indexation_check_settings',
+                    '*'
+                ),
+                'return' => array(
                 )
             )
         );
@@ -256,7 +326,7 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_verify_nonce',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
                     \WP_Mock\Functions::type('string'),
                     'passive_indexation_check_nonce'
@@ -268,12 +338,12 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_send_json_success',
             array(
-                'called' => 1
+                'times' => 1
             )
         );
 
         $_POST['nonce'] = 'nonce';
-        $_POST['notification_time'] = '1';
+        $_POST['send_treshold'] = '1';
 
         $plugin->updateSettings();
     }
@@ -286,7 +356,7 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_send_json_error',
             array(
-                'called' => 1
+                'times' => 1
             )
         );
 
@@ -301,7 +371,7 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_verify_nonce',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
                     \WP_Mock\Functions::type('string'),
                     'passive_indexation_check_nonce'
@@ -313,12 +383,11 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_send_json_error',
             array(
-                'called' => 1
+                'times' => 1
             )
         );
 
         $_POST['nonce'] = 'nonce';
-        $_POST['notification_time'] = '1';
 
         $plugin->addNotifierEmail();
     }
@@ -330,20 +399,11 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'get_option',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
-                    'passive_indexation_check_settings'
+                    'passive_indexation_check_emails'
                 ),
                 'return' => array(
-                    'notificationEmails' => array('some@some.com', 'boo@boo.com'),
-                    'notificationTime' => 1,
-                    'resendEmailTime' => 10,
-                    'lastBotVisit' => time(),
-                    'notificationData' => array(
-                        'notificationsSent' => false,
-                        'lastNotificationTS' => false,
-                        'botVisitTimeAtNotification' => time()
-                    )
                 )
             )
         );
@@ -352,7 +412,7 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_verify_nonce',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
                     \WP_Mock\Functions::type('string'),
                     'passive_indexation_check_nonce'
@@ -364,12 +424,12 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_send_json_success',
             array(
-                'called' => 1
+                'times' => 1
             )
         );
 
         $_POST['nonce'] = 'nonce';
-        $_POST['addedNotifier'] = 'foo@foo.com';
+        $_POST['added_notifier'] = 'foo@foo.com';
 
         $plugin->addNotifierEmail();
     }
@@ -378,32 +438,11 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
     {
         $plugin = new PassiveIndexationCheck;
 
-        \WP_Mock::wpFunction(
-            'get_option',
-            array(
-                'called' => 1,
-                'args' => array(
-                    'passive_indexation_check_settings'
-                ),
-                'return' => array(
-                    'notificationEmails' => array('some@some.com', 'boo@boo.com'),
-                    'notificationTime' => 1,
-                    'resendEmailTime' => 10,
-                    'lastBotVisit' => time(),
-                    'notificationData' => array(
-                        'notificationsSent' => false,
-                        'lastNotificationTS' => false,
-                        'botVisitTimeAtNotification' => time()
-                    )
-                )
-            )
-        );
-
         // Check corner case if nonce is correctly verified
         \WP_Mock::wpFunction(
             'wp_verify_nonce',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
                     \WP_Mock\Functions::type('string'),
                     'passive_indexation_check_nonce'
@@ -415,12 +454,12 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_send_json_error',
             array(
-                'called' => 1
+                'times' => 1
             )
         );
 
         $_POST['nonce'] = 'nonce';
-        $_POST['addedNotifier'] = 'foo';
+        $_POST['added_notifier'] = 'foo';
 
         $plugin->addNotifierEmail();
     }
@@ -433,7 +472,7 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_send_json_error',
             array(
-                'called' => 1
+                'times' => 1
             )
         );
 
@@ -448,7 +487,7 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_verify_nonce',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
                     \WP_Mock\Functions::type('string'),
                     'passive_indexation_check_nonce'
@@ -460,7 +499,7 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_send_json_error',
             array(
-                'called' => 1
+                'times' => 1
             )
         );
 
@@ -477,19 +516,12 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'get_option',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
-                    'passive_indexation_check_settings'
+                    'passive_indexation_check_emails'
                 ),
                 'return' => array(
-                    'notificationEmails' => array('some@some.com', 'boo@boo.com'),
-                    'notificationTime' => 1,
-                    'resendEmailTime' => 10,
-                    'lastBotVisit' => time(),
-                    'notificationData' => array(
-                        'notificationsSent' => false,
-                        'lastNotificationTS' => false,
-                        'botVisitTimeAtNotification' => time()
+                    'foo@foo.com' => array(
                     )
                 )
             )
@@ -499,7 +531,7 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_verify_nonce',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
                     \WP_Mock\Functions::type('string'),
                     'passive_indexation_check_nonce'
@@ -511,36 +543,30 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_send_json_success',
             array(
-                'called' => 1
+                'times' => 1
             )
         );
 
         $_POST['nonce'] = 'nonce';
-        $_POST['deleteNotifier'] = 'some@some.com';
+        $_POST['delete_notifier'] = 'foo@foo.com';
 
         $plugin->deleteNotifierEmail();
     }
 
     public function testDeleteEmailInValidNotifier()
     {
+
         $plugin = new PassiveIndexationCheck;
 
         \WP_Mock::wpFunction(
             'get_option',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
-                    'passive_indexation_check_settings'
+                    'passive_indexation_check_emails'
                 ),
                 'return' => array(
-                    'notificationEmails' => array('some@some.com', 'boo@boo.com'),
-                    'notificationTime' => 1,
-                    'resendEmailTime' => 10,
-                    'lastBotVisit' => time(),
-                    'notificationData' => array(
-                        'notificationsSent' => false,
-                        'lastNotificationTS' => false,
-                        'botVisitTimeAtNotification' => time()
+                    'foo@foo.com' => array(
                     )
                 )
             )
@@ -550,7 +576,7 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_verify_nonce',
             array(
-                'called' => 1,
+                'times' => 1,
                 'args' => array(
                     \WP_Mock\Functions::type('string'),
                     'passive_indexation_check_nonce'
@@ -562,41 +588,150 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         \WP_Mock::wpFunction(
             'wp_send_json_error',
             array(
-                'called' => 1
+                'times' => 1
             )
         );
 
         $_POST['nonce'] = 'nonce';
-        $_POST['addedNotifier'] = 'boo@boo.com';
+        $_POST['delete_notifier'] = 'invalid@goo.com';
 
         $plugin->deleteNotifierEmail();
     }
 
-    public function testActivate()
+    public function testActivateOptionsPresent()
     {
         $plugin = new PassiveIndexationCheck;
+
         \WP_Mock::wpFunction(
-            'add_option',
+            'get_option',
             array(
-                'called' => 1,
+                'times' => 1,
+                'args' => array(
+                    'passive_indexation_check_settings',
+                ),
+                'return' => array()
+            )
+        );
+
+        \WP_Mock::wpFunction(
+            'get_option',
+            array(
+                'times' => 1,
+                'args' => array(
+                    'passive_indexation_check_emails',
+                ),
+                'return' => array()
+            )
+        );
+
+        \WP_Mock::wpFunction(
+            'update_option',
+            array(
+                'times' => 0,
                 'args' => array(
                     'passive_indexation_check_settings', '*'
                 )
             )
         );
+
+        \WP_Mock::wpFunction(
+            'update_option',
+            array(
+                'times' => 0,
+                'args' => array(
+                    'passive_indexation_check_emails', '*'
+                )
+            )
+        );
+
+        \WP_Mock::wpFunction(
+            'wp_schedule_event',
+            array(
+                'times' => 1,
+                'args' => array(
+                    \WP_Mock\Functions::type('long'),
+                    \WP_Mock\Functions::type('string'),
+                    \WP_Mock\Functions::type('string')
+                )
+            )
+        );
+
+        $plugin->activatePlugin();
+    }
+
+    public function testActivateOptionsNotPresent()
+    {
+        $plugin = new PassiveIndexationCheck;
+
+        \WP_Mock::wpFunction(
+            'get_option',
+            array(
+                'times' => 1,
+                'args' => array(
+                    'passive_indexation_check_settings',
+                ),
+                'return' => false
+            )
+        );
+
+        \WP_Mock::wpFunction(
+            'get_option',
+            array(
+                'times' => 1,
+                'args' => array(
+                    'passive_indexation_check_emails',
+                ),
+                'return' => false
+            )
+        );
+
+        \WP_Mock::wpFunction(
+            'update_option',
+            array(
+                'times' => 1,
+                'args' => array(
+                    'passive_indexation_check_settings', '*'
+                )
+            )
+        );
+
+        \WP_Mock::wpFunction(
+            'update_option',
+            array(
+                'times' => 1,
+                'args' => array(
+                    'passive_indexation_check_emails', '*'
+                )
+            )
+        );
+
+        \WP_Mock::wpFunction(
+            'wp_schedule_event',
+            array(
+                'times' => 1,
+                'args' => array(
+                    \WP_Mock\Functions::type('long'),
+                    \WP_Mock\Functions::type('string'),
+                    \WP_Mock\Functions::type('string')
+                )
+            )
+        );
+
         $plugin->activatePlugin();
     }
 
     public function testDectivate()
     {
         $plugin = new PassiveIndexationCheck;
+
         \WP_Mock::wpFunction(
-            'delete_option',
+            'wp_clear_scheduled_hook',
             array(
-                'called' => 1,
-                'args' => array('passive_indexation_check_settings')
+                'times' => 1,
+                'args' => array('passive_indexation_check_send_emails')
             )
         );
+
         $plugin->deactivatePlugin();
     }
 }
