@@ -89,9 +89,8 @@ var passiveIndexationCheckJS = (function ($) {
         },
         updateEmailsList: function (emails) {
             var emailsHtml = '';
-            for (var key in emails) {
-                if (emails.hasOwnProperty(key)) {
-                    var email = emails[key];
+            for (var email in emails) {
+                if (emails.hasOwnProperty(email)) {
                     emailsHtml += '<span>' + email + '<span>';
                     emailsHtml += '<a onclick="passiveIndexationCheckJS.deleteEmail(\'' + email + '\');">';
                     emailsHtml += ' <span class="dashicons dashicons-no-alt" style="color: #d9534f;"></span>';
@@ -123,7 +122,7 @@ var passiveIndexationCheckJS = (function ($) {
             _private.sendRequest('passiveIndexationCheckForm', extraParams, function (data) {
                 if (_private.isRequestSuccessfull(data)) {
                     if (data.success) {
-                        _private.updateEmailsList(data.data.notificationEmails);
+                        _private.updateEmailsList(data.data.emails);
                         $('input[name=added_notifier]').val('');
                     }
                 }
@@ -147,8 +146,8 @@ var passiveIndexationCheckJS = (function ($) {
             _private.sendRequest(formId, extraParams, function (data) {
                 if (_private.isRequestSuccessfull(data)) {
                     if (data.success) {
-                        _private.updateEmailsList(data.data.notificationEmails);
-                        $('#passiveIndexationCheckDays').val(data.data.notificationTime);
+                        _private.updateEmailsList(data.data.emails);
+                        $('form#passiveIndexationCheckForm #sendTreshold').val(data.data.options.sendTreshold);
                     }
                 }
                 _private.triggerMessage(data);
@@ -176,7 +175,7 @@ var passiveIndexationCheckJS = (function ($) {
             _private.sendRequest('passiveIndexationCheckForm', extraParams, function (data) {
                 if (_private.isRequestSuccessfull(data)) {
                     if (data.success) {
-                        _private.updateEmailsList(data.data.notificationEmails);
+                        _private.updateEmailsList(data.data.emails);
                     }
                 }
                 _private.triggerMessage(data);
