@@ -171,6 +171,7 @@ var passiveIndexationCheckJS = (function ($) {
                 if (_private.isRequestSuccessfull(data)) {
                     if (data.success) {
                         _private.updateEmailsList(data.data.emails);
+                        $('form#passiveIndexationCheckForm input[name=added_notifier]').val('');
                         $('form#passiveIndexationCheckForm #sendTreshold').val(data.data.options.sendTreshold);
                     }
                 }
