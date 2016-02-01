@@ -1,7 +1,7 @@
 # Passive Indexation Check
 
 [![Build Status](https://travis-ci.com/niteoweb/passive-indexation-check.svg?token=MFHqF1ZX1qpAAAur9Z9s&branch=master)](https://travis-ci.com/niteoweb/passive-indexation-check)
-
+[![Coverage Status](https://coveralls.io/repos/github/niteoweb/passive-indexation-check/badge.svg?branch=master)](https://coveralls.io/github/niteoweb/passive-indexation-check?branch=master)
 
 ## Tests
 
