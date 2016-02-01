@@ -25,13 +25,15 @@
                 <td>
                     <!-- Notification emails -->
                     <input name="added_notifier" id="addedNotifier" type="email" />
-                    <a id="passiveIndexationCheckAddEmail"><span class="dashicons dashicons-plus-alt" style="line-height: 1.5; color: #000;"></a></span>
+                    <a id="passiveIndexationCheckAddEmail">
+                        <span class="dashicons dashicons-plus-alt"></a>
+                    </span>
                     <br>
-                    <div id="passiveIndexationCheckEmailsList" style="margin-top: 5px;">
+                    <div id="passiveIndexationCheckEmailsList">
                         <?php foreach ($emails as $email => $data) : ?>
                             <span><?php echo $email; ?><span>
-                            <a onclick="passiveIndexationCheckJS.deleteEmail('<?php echo $email; ?>')">
-                                <span class="dashicons dashicons-no-alt" style="color: #d9534f;"></span>
+                            <a class="passive_email" data-email="<?php echo $email; ?>">
+                                <span class="dashicons dashicons-no-alt"></span>
                             </a>
                             <br>
                         <?php endforeach; ?>

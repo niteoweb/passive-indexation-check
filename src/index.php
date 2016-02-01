@@ -72,6 +72,7 @@ class PassiveIndexationCheck
     public function enqueueJSAndCSSFiles()
     {
         wp_enqueue_script('passive-indexation-check-scripts', plugin_dir_url(__FILE__).'js/passive_indexation_check.js', array("jquery", "jquery-ui-core"));
+        wp_enqueue_style('passive-indexation-check-style', plugin_dir_url(__FILE__).'css/main.css');
     }
 
     /**
@@ -276,7 +277,6 @@ class PassiveIndexationCheck
 
             if ($nonceCheck) {
                 if (!isset($_POST['delete_notifier'])) {
-                    echo 'no data';
                     $response['msg'] = 'Notifier was not sent or invalid data.';
                     wp_send_json_error($response);
                     return;

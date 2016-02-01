@@ -92,8 +92,8 @@ var passiveIndexationCheckJS = (function ($) {
             for (var email in emails) {
                 if (emails.hasOwnProperty(email)) {
                     emailsHtml += '<span>' + email + '<span>';
-                    emailsHtml += '<a onclick="passiveIndexationCheckJS.deleteEmail(\'' + email + '\');">';
-                    emailsHtml += ' <span class="dashicons dashicons-no-alt" style="color: #d9534f;"></span>';
+                    emailsHtml += '<a class="passive_email" data-email="' + email + '">';
+                    emailsHtml += ' <span class="dashicons dashicons-no-alt"></span>';
                     emailsHtml += '</a><br>';
                 }
             }
@@ -131,6 +131,30 @@ var passiveIndexationCheckJS = (function ($) {
         },
         /**
          *
+         * Send delete email from notifiers to backend.
+         *
+         * @param  {string} email Email to delete.
+         *
+         * @return {void}
+         *
+         */
+        deleteEmail: function (email) {
+            var extraParams = {
+                action: 'passive_indexation_check_delete_email',
+                delete_notifier: email
+            };
+
+            _private.sendRequest('passiveIndexationCheckForm', extraParams, function (data) {
+                if (_private.isRequestSuccessfull(data)) {
+                    if (data.success) {
+                        _private.updateEmailsList(data.data.emails);
+                    }
+                }
+                _private.triggerMessage(data);
+            });
+        },
+        /**
+         *
          * Update plugin settings request.
          *
          * @param  {string} formId Form id that we will send serialized to the backend.
@@ -156,32 +180,7 @@ var passiveIndexationCheckJS = (function ($) {
 
     };
 
-    var _public = {
-        /**
-         *
-         * Send delete email from notifiers to backend.
-         *
-         * @param  {string} email Email to delete.
-         *
-         * @return {void}
-         *
-         */
-        deleteEmail: function (email) {
-            var extraParams = {
-                action: 'passive_indexation_check_delete_email',
-                delete_notifier: email
-            };
-
-            _private.sendRequest('passiveIndexationCheckForm', extraParams, function (data) {
-                if (_private.isRequestSuccessfull(data)) {
-                    if (data.success) {
-                        _private.updateEmailsList(data.data.emails);
-                    }
-                }
-                _private.triggerMessage(data);
-            });
-        }
-    };
+    var _public = {};
 
     $(document).ready(function () {
         $('#passiveIndexationCheckAddEmail').on('click', function (event) {
@@ -191,6 +190,10 @@ var passiveIndexationCheckJS = (function ($) {
         $('form#passiveIndexationCheckForm').on('submit', function (event) {
             event.preventDefault();
             _private.updateSettings('passiveIndexationCheckForm');
+        });
+        $('#passiveIndexationCheckEmailsList').on('click', '.passive_email', function () {
+            var email = $(this).attr('data-email');
+            _private.deleteEmail(email);
         });
     });
 
