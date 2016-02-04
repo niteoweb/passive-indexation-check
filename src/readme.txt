@@ -3,7 +3,7 @@ Contributors: niteoweb
 Tags: seo, indexation, googlebot, index
 Requires at least: 4.0
 Tested up to: 4.4.1
-Stable tag: 1.0.9
+Stable tag: 1.0.0
 
 Passive Indexation Check notifies you when googlebot stops visiting your blog for a certain period of time.
 
