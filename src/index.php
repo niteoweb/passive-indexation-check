@@ -4,7 +4,7 @@ namespace Niteoweb\PassiveIndexationCheck;
 
 /**
  * Plugin Name: Passive Indexation Check
- * Description: Spider Blocker will check if googlebot is visiting the blog.
+ * Description: Passive Indexation Check notifies you when googlebot stops visiting your blog.
  * Version:     1.0.0
  * Runtime:     5.3+
  * Author:      Easy Blog Networks
@@ -197,9 +197,34 @@ class PassiveIndexationCheck
                 $options['sendTreshold'] = $_POST['send_treshold'];
                 update_option($this->optionsKey, $options);
                 $response['options'] = $options;
-                $response['emails'] = get_option($this->emailsKey);
-                $response['msg'] = 'Settings were successfully updated.';
-                wp_send_json_success($response);
+
+                $newNotifier = $_POST['added_notifier'];
+                $emails = get_option($this->emailsKey);
+
+                if (strlen($newNotifier) > 0) {
+                    $addEmailStatus = $this->checkEmailToBeAdded($emails, $newNotifier);
+
+                    switch ($addEmailStatus) {
+                        case -1:
+                            $response['msg'] = 'Please enter a valid email address.';
+                            wp_send_json_error($response);
+                            break;
+                        case 0:
+                            $response['msg'] = 'Email already exists.';
+                            wp_send_json_error($response);
+                            break;
+                        case 1:
+                            update_option($this->emailsKey, $emails);
+                            $response['emails'] = $emails;
+                            $response['msg'] = sprintf('Settings were successfully updated and email %s was added to notifications list.', $newNotifier);
+                            wp_send_json_success($response);
+                            break;
+                    }
+                } else {
+                    $response['msg'] = 'Settings were successfully updated.';
+                    $response['emails'] = $emails;
+                    wp_send_json_success($response);
+                }
             } else {
                 $response['msg'] = 'Invalid authentication. Please refresh your page.';
                 wp_send_json_error($response);
@@ -208,6 +233,35 @@ class PassiveIndexationCheck
             $response['msg'] = 'No nonce value was provided.';
             wp_send_json_error($response);
         }
+    }
+
+    /**
+     *
+     * Check if the email we are trying to add already exists or is not a valid
+     * email address.
+     *
+     * @param   [type]        &$emails     Emails array.
+     * @param   [string]      $newNotifier New email to be added.
+     *
+     * @return  [integer]                  Returns -1 if not valid email address,
+     *                                     0 if email already exists and 1 if
+     *                                     email needs to be added.
+     *
+     */
+    public function checkEmailToBeAdded(&$emails, $newNotifier)
+    {
+        if (!filter_var($newNotifier, FILTER_VALIDATE_EMAIL)) {
+            return -1;
+        }
+        if (array_key_exists($newNotifier, $emails)) {
+            return 0;
+        }
+        $emails[$newNotifier] = array(
+            'sent' => false,
+            'lastSentTS' => false,
+            'botVisitTimeAtNotification' => false
+        );
+        return 1;
     }
 
     /**
@@ -230,28 +284,24 @@ class PassiveIndexationCheck
                 }
 
                 $newNotifier = $_POST['added_notifier'];
-
-                if (!filter_var($newNotifier, FILTER_VALIDATE_EMAIL)) {
-                    $response['msg'] = 'Please enter a valid email address.';
-                    wp_send_json_error($response);
-                    return;
-                }
-
                 $emails = get_option($this->emailsKey);
+                $addEmailStatus = $this->checkEmailToBeAdded($emails, $newNotifier);
 
-                if (array_key_exists($newNotifier, $emails)) {
-                    $response['msg'] = 'Email already exists.';
-                    wp_send_json_error($response);
-                } else {
-                    $emails[$newNotifier] = array(
-                        'sent' => false,
-                        'lastSentTS' => false,
-                        'botVisitTimeAtNotification' => false
-                    );
-                    update_option($this->emailsKey, $emails);
-                    $response['emails'] = $emails;
-                    $response['msg'] = sprintf('Email %s was successfully added to notifications list.', $newNotifier);
-                    wp_send_json_success($response);
+                switch ($addEmailStatus) {
+                    case -1:
+                        $response['msg'] = 'Please enter a valid email address.';
+                        wp_send_json_error($response);
+                        break;
+                    case 0:
+                        $response['msg'] = 'Email already exists.';
+                        wp_send_json_error($response);
+                        break;
+                    case 1:
+                        update_option($this->emailsKey, $emails);
+                        $response['emails'] = $emails;
+                        $response['msg'] = sprintf('Email %s was successfully added to notifications list.', $newNotifier);
+                        wp_send_json_success($response);
+                        break;
                 }
             } else {
                 $response['msg'] = 'Invalid authentication. Please refresh your page.';

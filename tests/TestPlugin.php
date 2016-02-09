@@ -277,6 +277,26 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
         $plugin->updateSettings();
     }
 
+    public function testCheckEmailToBeAdded()
+    {
+        $plugin = new PassiveIndexationCheck;
+        $emails = array();
+
+        // Case 1: Invalid email address
+        $email = 'foo';
+        $response = $plugin->checkEmailToBeAdded($emails, $email);
+        $this->assertEquals(-1, $response);
+
+        // Case 2: Email does not exist yet
+        $response = $plugin->checkEmailToBeAdded($emails, 'foo@foo.com');
+        $this->assertEquals(1, $response);
+
+        // Case 3: Email exists
+        $emails['foo@foo.com'] = array();
+        $response = $plugin->checkEmailToBeAdded($emails, 'foo@foo.com');
+        $this->assertEquals(0, $response);
+    }
+
     public function testUpdateSettingsValidNonce()
     {
         $plugin = new PassiveIndexationCheck;
@@ -342,8 +362,20 @@ class TestPlugin extends \PHPUnit_Framework_TestCase
             )
         );
 
+        \WP_Mock::wpFunction(
+            'update_option',
+            array(
+                'times' => 1,
+                'args' => array(
+                    'passive_indexation_check_emails',
+                    '*'
+                )
+            )
+        );
+
         $_POST['nonce'] = 'nonce';
         $_POST['send_treshold'] = '1';
+        $_POST['added_notifier'] = 'foo@foo.com';
 
         $plugin->updateSettings();
     }
