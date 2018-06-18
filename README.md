@@ -40,3 +40,8 @@ use WP_Mock.
 
 - Install composer and initialize project
 - `make lint && make test`
+
+## We're hiring!
+
+At Niteo we regularly contribute back to the Open Source community. If you do too, we'd like to invite you to [join our team](https://niteo.co/careers)!
+
